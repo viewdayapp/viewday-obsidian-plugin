@@ -1,0 +1,21 @@
+{
+  "name": "viewday-calendar",
+  "version": "1.0.0",
+  "description": "Viewday Calendar for Obsidian",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": [],
+  "author": "Viewday",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^16.11.21",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "0.14.14",
+    "obsidian": "latest",
+    "tslib": "2.3.1",
+    "typescript": "4.5.5"
+  }
+}

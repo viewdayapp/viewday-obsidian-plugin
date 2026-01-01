@@ -1,0 +1,10 @@
+{
+  "id": "viewday-google-calendar",
+  "name": "Google Calendar by Viewday (Official)",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "The official Viewday Google Calendar integration for Obsidian. Real-time sync, Multi-account, & OAuth. No API keys required.",
+  "author": "Viewday",
+  "authorUrl": "https://viewday.app",
+  "isDesktopOnly": false
+}
