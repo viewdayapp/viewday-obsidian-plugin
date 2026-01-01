@@ -1,11 +1,11 @@
 import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
 
 interface ViewdaySettings {
-    publicId: string;
+    widgetId: string;
 }
 
 const DEFAULT_SETTINGS: ViewdaySettings = {
-    publicId: ''
+    widgetId: ''
 }
 
 export const VIEW_TYPE_VIEWDAY = "viewday-google-calendar";
@@ -75,7 +75,7 @@ class ViewdayView extends ItemView {
         const container = this.contentEl;
         container.empty();
         
-        if (!this.settings.publicId) {
+        if (!this.settings.widgetId) {
             container.createEl("h4", { text: "Please set your Widget ID in settings." });
             return;
         }
@@ -84,7 +84,7 @@ class ViewdayView extends ItemView {
         
         container.createEl("iframe", {
             attr: {
-                src: `https://viewday.app/embed/${this.settings.publicId}?platform=obsidian&theme=${isDark ? 'dark' : 'light'}`,
+                src: `https://viewday.app/embed/${this.settings.widgetId}?platform=obsidian&theme=${isDark ? 'dark' : 'light'}`,
                 style: "width: 100%; height: 100%; border: none;",
                 sandbox: "allow-scripts allow-same-origin allow-popups"
             }
@@ -126,9 +126,9 @@ class ViewdaySettingTab extends PluginSettingTab {
             .setDesc('Enter the Obsidian Widget ID from your Viewday dashboard and hit Enter')
             .addText(text => text
                 .setPlaceholder('Paste ID here...')
-                .setValue(this.plugin.settings.publicId)
+                .setValue(this.plugin.settings.widgetId)
                 .onChange(async (value) => {
-                    this.plugin.settings.publicId = value;
+                    this.plugin.settings.widgetId = value;
                     await this.plugin.saveSettings();
                     refreshSuccessMessage(value);
                 }));
@@ -156,7 +156,7 @@ class ViewdaySettingTab extends PluginSettingTab {
             }
         };
 
-        refreshSuccessMessage(this.plugin.settings.publicId);
+        refreshSuccessMessage(this.plugin.settings.widgetId);
 
         const linkContainer = containerEl.createDiv({ cls: 'viewday-links' });
         linkContainer.style.marginTop = '20px';
