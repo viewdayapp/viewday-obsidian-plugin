@@ -22,7 +22,7 @@ export default class ViewdayPlugin extends Plugin {
             (leaf) => new ViewdayView(leaf, this.settings)
         );
 
-        this.addRibbonIcon('calendar-days', 'Open Viewday', () => {
+        this.addRibbonIcon('calendar-days', 'Open viewday', () => {
             void this.activateView();
         });
     }
@@ -71,14 +71,14 @@ class ViewdayView extends ItemView {
     getViewType() { return VIEW_TYPE_VIEWDAY; }
     getDisplayText() { return "Viewday calendar"; }
 
-    async onOpen() {
+    async onOpen(): Promise<void> {
         await Promise.resolve(); 
 
         const container = this.contentEl;
         container.empty();
         
         if (!this.settings.widgetId) {
-            container.createEl("h4", { text: "Please set your Widget ID in settings." });
+            container.createEl("h4", { text: "Please set your widget id in settings." });
             return;
         }
 
@@ -103,11 +103,11 @@ class ViewdaySettingTab extends PluginSettingTab {
         containerEl.empty();
 
         new Setting(containerEl)
-            .setName('Google calendar by Viewday')
+            .setName('Google calendar by viewday.app')
             .setHeading();
 
         containerEl.createEl("p", {
-            text: "A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account."
+            text: "A real-time google calendar for obsidian with multi-account sync, secure oauth, and dark mode support. No manual api key setup required. Requires a viewday.app account."
         });
 
         new Setting(containerEl)
@@ -115,28 +115,29 @@ class ViewdaySettingTab extends PluginSettingTab {
             .setHeading();
 
         containerEl.createEl('p', { 
-            text: 'Connect your Google Calendar to Obsidian by following these simple steps:' 
+            text: 'Connect your google calendar to obsidian by following these simple steps:' 
         });
         
         const steps = containerEl.createEl('ol');
         const step1 = steps.createEl('li', { text: 'Sign up at ' });
         step1.createEl('a', { text: 'Viewday', href: 'https://viewday.app/signup' });
         step1.appendText('.');
-        steps.createEl('li', { text: 'Connect your Google accounts.' });
+        steps.createEl('li', { text: 'Connect your google accounts.' });
         steps.createEl('li', { text: 'Create a calendar widget.' });
-        steps.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
-        steps.createEl('li', { text: 'Copy the "Obsidian Widget ID".' });
+        steps.createEl('li', { text: 'Select the calendars you want to see in obsidian.' });
+        steps.createEl('li', { text: 'Copy the "obsidian widget id".' });
 
         new Setting(containerEl)
-            .setName('Widget ID')
-            .setDesc('Enter the Obsidian Widget ID from your Viewday dashboard and hit Enter')
+            .setName('Widget id')
+            .setDesc('Enter the obsidian widget id from your viewday dashboard and hit Enter')
             .addText(text => text
-                .setPlaceholder('Paste ID here...')
+                .setPlaceholder('Paste id here...')
                 .setValue(this.plugin.settings.widgetId)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.widgetId = value;
-                    await this.plugin.saveSettings();
-                    refreshSuccessMessage(value);
+                    void this.plugin.saveSettings().then(() => {
+                        refreshSuccessMessage(value);
+                    });
                 }));
 
         const successContainer = containerEl.createDiv();
@@ -147,7 +148,7 @@ class ViewdaySettingTab extends PluginSettingTab {
                 successContainer.addClass('viewday-success-container');
 
                 successContainer.createSpan({ 
-                    text: "All set! Click the calendar icon"
+                    text: "All set - click the calendar icon"
                 });
 
                 const iconSpan = successContainer.createSpan();
@@ -164,7 +165,7 @@ class ViewdaySettingTab extends PluginSettingTab {
         const linkContainer = containerEl.createDiv('viewday-link-container');
 
         linkContainer.createEl('a', { 
-            text: 'Go to Viewday dashboard ↗', 
+            text: 'Go to viewday dashboard ↗', 
             href: 'https://viewday.app/dashboard' 
         });
 
