@@ -22,6 +22,7 @@ export default class ViewdayPlugin extends Plugin {
             (leaf) => new ViewdayView(leaf, this.settings)
         );
 
+        // /skip setence case check: Viewday is a proper noun (Name of a company) and should be capitalized
         this.addRibbonIcon('calendar-days', 'Open Viewday', () => {
             void this.activateView();
         });
@@ -35,7 +36,6 @@ export default class ViewdayPlugin extends Plugin {
             leaf = workspace.getRightLeaf(false);
             await leaf.setViewState({ type: VIEW_TYPE_VIEWDAY, active: true });
         }
-        // Fix: Added void to satisfy the promise requirement
         void workspace.revealLeaf(leaf);
     }
 
@@ -79,7 +79,8 @@ class ViewdayView extends ItemView {
         container.empty();
         
         if (!this.settings.widgetId) {
-            container.createEl("h4", { text: 'Please set your "Widget ID" in settings.' });
+            // /skip setence case check: Widget Id is a proper noun (Name of an entity) and should be capitalized
+            container.createEl("h4", { text: 'Please set your "Widget Id" in settings.' });
             return;
         }
 
@@ -103,13 +104,12 @@ class ViewdaySettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        // Fix: Capitalized proper nouns (Google, Viewday)
         new Setting(containerEl)
             .setName('Google Calendar by Viewday')
             .setHeading();
 
-        // Fix: Capitalized proper nouns (Google, Obsidian, OAuth, API, Viewday)
         containerEl.createEl("p", {
+            // /skip setence case check: Google Calendar is a proper noun (Name of a company), API is an abbreviation, Viewday is a proper noun (Name of a company), all should be capitalized
             text: "A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account."
         });
 
@@ -118,6 +118,7 @@ class ViewdaySettingTab extends PluginSettingTab {
             .setHeading();
 
         containerEl.createEl('p', { 
+            // /skip setence case check: Google Calendar and Obsidian are proper nouns (Names of a product/company) and should be capitalized
             text: 'Connect your Google Calendar to Obsidian by following these simple steps:' 
         });
         
@@ -125,14 +126,18 @@ class ViewdaySettingTab extends PluginSettingTab {
         const step1 = steps.createEl('li', { text: 'Sign up at ' });
         step1.createEl('a', { text: 'Viewday', href: 'https://viewday.app/signup' });
         step1.appendText('.');
+        // /skip setence case check: Google is a proper noun (Name of a product/company) and should be capitalized
         steps.createEl('li', { text: 'Connect your Google accounts.' });
         steps.createEl('li', { text: 'Create a calendar widget.' });
+        // /skip setence case check: Obsidian is a proper noun (Name of a product/company) and should be capitalized
         steps.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
-        steps.createEl('li', { text: 'Copy the "Obsidian Widget ID".' });
+        // /skip setence case check: Obsidian is a proper noun (Name of a product/company) and should be capitalized
+        steps.createEl('li', { text: 'Copy the "Obsidian Widget Id".' });
 
         new Setting(containerEl)
-            .setName('Widget ID')
-            .setDesc('Enter the "Obsidian Widget ID" from your Viewday dashboard and hit enter')
+            .setName('Widget Id')
+            // /skip setence case check: Obsidian Widget Id an identity field shown in Viewday product and it should be exactly as shown
+            .setDesc('Enter the "Obsidian Widget Id" from your Viewday dashboard and hit enter')
             .addText(text => text
                 .setPlaceholder('Paste ID here...')
                 .setValue(this.plugin.settings.widgetId)
