@@ -23,7 +23,7 @@ export default class ViewdayPlugin extends Plugin {
         );
 
         this.addRibbonIcon('calendar-days', 'Open Viewday', () => {
-            this.activateView();
+            void this.activateView();
         });
     }
 
@@ -47,7 +47,7 @@ export default class ViewdayPlugin extends Plugin {
         
         this.app.workspace.getLeavesOfType(VIEW_TYPE_VIEWDAY).forEach((leaf) => {
             if (leaf.view instanceof ViewdayView) {
-                leaf.view.onOpen(); 
+                void leaf.view.onOpen(); 
             }
         });
     }
@@ -63,15 +63,17 @@ class ViewdayView extends ItemView {
 
         this.registerEvent(
             this.app.workspace.on('css-change', () => {
-                this.onOpen(); 
+                void this.onOpen(); 
             })
         );
     }
 
     getViewType() { return VIEW_TYPE_VIEWDAY; }
-    getDisplayText() { return "Viewday Calendar"; }
+    getDisplayText() { return "Viewday calendar"; }
 
     async onOpen() {
+        await Promise.resolve(); 
+
         const container = this.contentEl;
         container.empty();
         
@@ -100,16 +102,20 @@ class ViewdaySettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h1', { text: 'Google Calendar by Viewday' });
+        new Setting(containerEl)
+            .setName('Google calendar by Viewday')
+            .setHeading();
 
         containerEl.createEl("p", {
             text: "A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account."
         });
 
-        containerEl.createEl('h2', { text: 'Setup Instructions' });
+        new Setting(containerEl)
+            .setName('Setup instructions')
+            .setHeading();
 
         containerEl.createEl('p', { 
-            text: 'Connect your Google Calendar to Obsidian by follow these simple steps:' 
+            text: 'Connect your Google Calendar to Obsidian by following these simple steps:' 
         });
         
         const steps = containerEl.createEl('ol');
@@ -117,9 +123,9 @@ class ViewdaySettingTab extends PluginSettingTab {
         step1.createEl('a', { text: 'Viewday', href: 'https://viewday.app/signup' });
         step1.appendText('.');
         steps.createEl('li', { text: 'Connect your Google accounts.' });
-        steps.createEl('li', { text: 'Create a calendar widget' });
-        steps.createEl('li', { text: 'Select the calendars you want to see in Obsidian' });
-        steps.createEl('li', { text: 'Copy the "Obsidian Widget ID"' });
+        steps.createEl('li', { text: 'Create a calendar widget.' });
+        steps.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
+        steps.createEl('li', { text: 'Copy the "Obsidian Widget ID".' });
 
         new Setting(containerEl)
             .setName('Widget ID')
@@ -138,10 +144,7 @@ class ViewdaySettingTab extends PluginSettingTab {
         const refreshSuccessMessage = (id: string) => {
             successContainer.empty();
             if (id && id.length > 0) {
-                successContainer.style.marginTop = "15px";
-                successContainer.style.display = "flex";
-                successContainer.style.alignItems = "center";
-                successContainer.style.gap = "5px";
+                successContainer.addClass('viewday-success-container');
 
                 successContainer.createSpan({ 
                     text: "All set! Click the calendar icon"
@@ -158,11 +161,7 @@ class ViewdaySettingTab extends PluginSettingTab {
 
         refreshSuccessMessage(this.plugin.settings.widgetId);
 
-        const linkContainer = containerEl.createDiv({ cls: 'viewday-links' });
-        linkContainer.style.marginTop = '20px';
-        linkContainer.style.display = 'flex';
-        linkContainer.style.flexDirection = 'column';
-        linkContainer.style.gap = '10px';
+        const linkContainer = containerEl.createDiv('viewday-link-container');
 
         linkContainer.createEl('a', { 
             text: 'Go to Viewday dashboard ↗', 

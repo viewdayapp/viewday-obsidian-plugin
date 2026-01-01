@@ -1,2 +1,13 @@
-/* Custom styles for Viewday Google Calendar */
-/* This file is currently empty but required for Obsidian plugin submission. */
+.viewday-success-container {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.viewday-link-container {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
