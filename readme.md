@@ -6,17 +6,17 @@ A real-time Google Calendar for Obsidian with **multi-account and multi-calendar
 
 ![Viewday Calendar Screenshot](https://viewday.app/viewday-obsidian-og.png)
 
-> Note This plugin requires an account with [Viewday](https://viewday.app) — a service that securely bridges Google Calendar to your productivity tools. A free tier is available, while advanced features like multi-account merging and agenda views require a subscription.
+> Note: This plugin requires an account with [Viewday](https://viewday.app) - A service that securely brings Google Calendar to your productivity tools. A free tier is available, while advanced features like multi-account merging and agenda views require a subscription.
 
-Stay focused with a high-density Agenda view for your daily tasks.
+**Agenda View**: Stay focused with a high-density Agenda view for your daily tasks.
 
 ![Viewday Calendar Screenshot](https://viewday.app/viewday-obsidian-agenda-og.png)
 
-Join Google Meet calls directly from your sidebar with one click.
+**Join Meetings Directly**: Join Google Meet calls directly from your sidebar with one click.
 
 ![Viewday Calendar Screenshot](https://viewday.app/viewday-obsidian-event-og.png)
 
-Automatic dark/light theme switching that matches your vault.
+**Theme Awareness**: Automatic dark/light theme switching that matches your vault.
 
 ![Viewday Calendar Screenshot](https://viewday.app/viewday-obsidian-dark-og.png)
 
