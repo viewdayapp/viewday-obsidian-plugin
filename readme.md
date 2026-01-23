@@ -10,6 +10,10 @@ A real-time Google Calendar for Obsidian with **multi-account and multi-calendar
 
 ## 🌟 Highlights
 
+**Create Meeting Notes**: Jumpstart your note-taking with one click. Automatically captures attendees, agenda, location, and links into Dataview-ready format so you can focus on capturing minutes and ideas.
+
+![Create Meeting Notes](assets/viewday-obsidian-create-note.png)
+
 **Agenda View**: Stay focused with a high-density Agenda view for your daily tasks.
 
 ![Viewday Calendar](assets/viewday-obsidian-agenda-og.png)
@@ -25,6 +29,7 @@ A real-time Google Calendar for Obsidian with **multi-account and multi-calendar
 ## ✨ Features
 
 - **Real-time Sync:** Your calendar updates instantly in Obsidian when you add or change events in Google Calendar.
+- **Smart Note Creation:** Create meeting notes that automatically populate with YAML frontmatter (attendees, location, organizers), sanitized HTML descriptions, and meeting links.
 - **Multi-Account Support:** Merge multiple Google Calendars (Work, Personal, Family) into a single, clean view.
 - **Aesthetic-First:** Designed with a clean, modern aesthetic that complements any Obsidian theme.
 - **No Manual API Keys:** Connect via secure Google OAuth; no need to mess with Google Cloud Console.
@@ -33,17 +38,17 @@ A real-time Google Calendar for Obsidian with **multi-account and multi-calendar
 
 ## 🚀 Getting Started
 
-1. **Install the Plugin:** Search for "Google Calendar by Viewday (Official)" in the Obsidian Community Plugins store and click Install.
-2. **Connect your Calendar:** Sign up at [viewday.app/signup](https://viewday.app/signup) and link your Google accounts.
-3. **Get your Widget ID:** Create a calendar widget in your dashboard and copy the **Widget ID**.
-4. **Configure:** Paste your **Widget ID** into the Viewday Plugin settings in Obsidian.
+1. **Install the Plugin:** Search for "Google Calendar by Viewday" in the Obsidian Community Plugins store and click Install.
+2. **Connect your Calendar:** Sign up at [viewday.app/signup](https://viewday.app/signup) and connect your Google accounts.
+3. **Get your Obsidian ID:** Create a calendar view in your dashboard and copy the **Obsidian ID**. This ID determines which specific calendar view appears in Obsidian.
+4. **Configure:** Paste your **Obsidian ID** into the Viewday Plugin settings in Obsidian. You can also customize the folder where new meeting notes are created.
 5. **Open:** Click the calendar icon in your ribbon (left sidebar) to open your Google Calendar live view.
 
 ## 🛠️ Technical Details
 
 This plugin acts as a secure wrapper for the Viewday web application using a sandboxed `iframe`.
-- **Privacy:** The plugin only stores your `Widget ID` locally in your vault's settings.
-- **Security:** All Google Calendar data is handled via Viewday's encrypted backend and never touches your local markdown files. [Learn more about Viewday's security](https://viewday.app/security)
+- **Privacy:** The plugin only stores your `Obsidian ID` and your **meeting notes folder name** locally in your vault's settings.
+- **Security:** All Google Calendar data is handled via Viewday's encrypted backend. The plugin only writes to your vault when you explicitly click "Create meeting note." [Learn more about Viewday's security](https://viewday.app/security)
 - **Performance:** Optimized with database indexing and scoped realtime streams to ensure zero impact on your vault's speed.
 
 ## 📈 Pricing

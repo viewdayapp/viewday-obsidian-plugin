@@ -1,11 +1,13 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile } from 'obsidian';
 
 interface ViewdaySettings {
     widgetId: string;
+    meetingNoteFolder: string; // New setting for folder path
 }
 
 const DEFAULT_SETTINGS: ViewdaySettings = {
-    widgetId: ''
+    widgetId: '',
+    meetingNoteFolder: 'Meeting Notes'
 }
 
 export const VIEW_TYPE_VIEWDAY = "viewday-google-calendar";
@@ -26,6 +28,96 @@ export default class ViewdayPlugin extends Plugin {
         this.addRibbonIcon('calendar-days', 'Open Viewday', () => {
             void this.activateView();
         });
+
+        // REGISTER LISTENER: Listen for messages from the iframe
+        this.registerDomEvent(window, 'message', (event) => {
+            void this.handleMessage(event);
+        });
+    }
+
+    async handleMessage(event: MessageEvent) {
+        // SECURITY: Only accept messages from your domain
+        if (event.origin !== "https://viewday.app" && event.origin !== "http://localhost:3000") return;
+
+        // Check for specific action type
+        if (event.data.type === 'create-meeting-note' && event.data.eventData) {
+            await this.createMeetingNote(event.data.eventData);
+        }
+    }
+
+    async createMeetingNote(data: any) {
+        // Helper to escape double quotes for YAML strings
+        const escapeYaml = (text: string) => (text || '').replace(/"/g, '\\"');
+        // Destructure all the new fields
+        const { title, date, time, location, meetingLink, organizer, attendees, description, attachments, gcalLink } = data;
+        
+        // 1. Sanitize filename
+        const safeTitle = (title || 'Untitled Event').replace(/[\\/:*?"<>|]/g, "");
+        const fileName = `${date} - ${safeTitle}.md`;
+        const folderPath = this.settings.meetingNoteFolder;
+        const filePath = `${folderPath}/${fileName}`;
+
+        try {
+            // 2. Ensure folder exists
+            if (!this.app.vault.getAbstractFileByPath(folderPath)) {
+                await this.app.vault.createFolder(folderPath);
+            }
+
+            // 3. Check if file exists
+            const existingFile = this.app.vault.getAbstractFileByPath(filePath);
+            if (existingFile instanceof TFile) {
+                const leaf = this.app.workspace.getLeaf(false);
+                await leaf.openFile(existingFile);
+                new Notice(`Opened existing note: ${fileName}`);
+                return;
+            }
+
+            // 4. Build Rich Content
+            // We use YAML frontmatter for metadata, which is standard in Obsidian
+            let fileContent = `---
+date: ${date}
+time: ${time}
+location: "${escapeYaml(location)}"
+organizer: "${escapeYaml(organizer)}"
+meeting_link: "${meetingLink || ''}"
+google_cal_link: "${gcalLink || ''}"
+attendees: [${attendees ? attendees.map((a: string) => `"${escapeYaml(a)}"`).join(', ') : ''}]
+tags: [meeting]
+---
+# ${title}
+
+`;
+
+            // Add Meeting Link Button-like text if exists
+            if (meetingLink) {
+                fileContent += `[Join Meeting](${meetingLink})\n\n`;
+            }
+
+            fileContent += `## Agenda\n${description || 'No agenda provided.'}\n\n`;
+            
+            // Add Attachments Section if they exist
+            if (attachments && attachments.length > 0) {
+                fileContent += `## Attachments\n`;
+                attachments.forEach((att: any) => {
+                    if (att.url) {
+                        fileContent += `- [${att.title}](${att.url})\n`;
+                    }
+                });
+                fileContent += `\n`;
+            }
+
+            fileContent += `## Notes\n- \n`;
+
+            // 5. Create and Open
+            const newFile = await this.app.vault.create(filePath, fileContent);
+            const leaf = this.app.workspace.getLeaf(false);
+            await leaf.openFile(newFile);
+            new Notice(`Created meeting note: ${fileName}`);
+
+        } catch (error) {
+            console.error("Viewday: Failed to create note", error);
+            new Notice("Viewday: Failed to create meeting note.");
+        }
     }
 
     async activateView() {
@@ -104,40 +196,49 @@ class ViewdaySettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        new Setting(containerEl)
+        // 1. HEADER & INTRO
+        // Using a Setting component ensures the text aligns exactly with the boxes below
+        const headerSetting = new Setting(containerEl)
             .setName('Google Calendar by Viewday')
-            .setHeading();
-
-        containerEl.createEl("p", {
-            // /skip setence case check: Google Calendar is a proper noun (Name of a company), API is an abbreviation, Viewday is a proper noun (Name of a company), all should be capitalized
-            text: "A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account."
-        });
-
-        new Setting(containerEl)
-            .setName('Setup instructions')
-            .setHeading();
-
-        containerEl.createEl('p', { 
-            // /skip setence case check: Google Calendar and Obsidian are proper nouns (Names of a product/company) and should be capitalized
-            text: 'Connect your Google Calendar to Obsidian by following these simple steps:' 
-        });
+            .setDesc("A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account.");
         
-        const steps = containerEl.createEl('ol');
-        const step1 = steps.createEl('li', { text: 'Sign up at ' });
+        // CSS tweak to make the name look like a header (larger/bold) without the default padding issues
+        headerSetting.nameEl.style.fontSize = '1.2em';
+        headerSetting.nameEl.style.fontWeight = 'bold';
+        headerSetting.nameEl.style.marginBottom = '8px';
+        headerSetting.descEl.style.color = 'var(--text-normal)'; // Make description readable
+
+
+        // 2. SETUP INSTRUCTIONS
+        const setupSetting = new Setting(containerEl)
+            .setName('Setup instructions')
+            .setDesc('Connect your Google Calendar to Obsidian by following these simple steps:');
+        
+        setupSetting.nameEl.style.fontSize = '1.1em';
+        setupSetting.nameEl.style.fontWeight = 'bold';
+        setupSetting.nameEl.style.marginTop = '20px';
+        setupSetting.nameEl.style.marginBottom = '8px';
+
+        // 3. ORDERED LIST
+        // We append the list directly to the description container of the previous setting
+        // This keeps it inside the aligned "box" of the setting layout
+        const listContainer = setupSetting.descEl.createEl('ol');
+        listContainer.style.marginTop = '8px';
+        listContainer.style.paddingLeft = '20px'; // Standard list indent
+
+        const step1 = listContainer.createEl('li', { text: 'Sign up at ' });
         step1.createEl('a', { text: 'Viewday', href: 'https://viewday.app/signup' });
         step1.appendText('.');
-        // /skip setence case check: Google is a proper noun (Name of a product/company) and should be capitalized
-        steps.createEl('li', { text: 'Connect your Google accounts.' });
-        steps.createEl('li', { text: 'Create a calendar widget.' });
-        // /skip setence case check: Obsidian is a proper noun (Name of a product/company) and should be capitalized
-        steps.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
-        // /skip setence case check: Obsidian is a proper noun (Name of a product/company) and should be capitalized
-        steps.createEl('li', { text: 'Copy the "Obsidian Widget Id".' });
+        listContainer.createEl('li', { text: 'Connect your Google accounts.' });
+        listContainer.createEl('li', { text: 'Create a calendar widget.' });
+        listContainer.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
+        listContainer.createEl('li', { text: 'Copy the "Obsidian ID".' });
 
+
+        // 4. WIDGET ID SETTING (Standard)
         new Setting(containerEl)
             .setName('Widget Id')
-            // /skip setence case check: Obsidian Widget Id an identity field shown in Viewday product and it should be exactly as shown
-            .setDesc('Enter the "Obsidian Widget Id" from your Viewday dashboard and hit enter')
+            .setDesc('Enter the "Obsidian ID" from your Viewday dashboard and hit enter')
             .addText(text => text
                 .setPlaceholder('Paste ID here...')
                 .setValue(this.plugin.settings.widgetId)
@@ -148,44 +249,51 @@ class ViewdaySettingTab extends PluginSettingTab {
                     });
                 }));
 
+        // 5. FOLDER SETTING (Standard)
+        new Setting(containerEl)
+            .setName('Meeting notes folder')
+            .setDesc('Where should new meeting notes be created?')
+            .addText(text => text
+                .setPlaceholder('Meeting Notes')
+                .setValue(this.plugin.settings.meetingNoteFolder)
+                .onChange((value) => {
+                    this.plugin.settings.meetingNoteFolder = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        // 6. SUCCESS MESSAGE
         const successContainer = containerEl.createDiv();
-        
         const refreshSuccessMessage = (id: string) => {
             successContainer.empty();
             if (id && id.length > 0) {
+                // Add some top margin to separate from settings
+                successContainer.style.marginTop = '20px';
                 successContainer.addClass('viewday-success-container');
 
-                successContainer.createSpan({ 
-                    text: "All set! Click the calendar icon"
-                });
-
+                successContainer.createSpan({ text: "All set! Click the calendar icon" });
                 const iconSpan = successContainer.createSpan();
                 setIcon(iconSpan, "calendar-days");
-
-                successContainer.createSpan({ 
-                    text: "in your sidebar to view your schedule." 
-                });
+                successContainer.createSpan({ text: "in your sidebar to view your schedule." });
             }
         };
-
         refreshSuccessMessage(this.plugin.settings.widgetId);
 
+        // 7. FOOTER LINKS
         const linkContainer = containerEl.createDiv('viewday-link-container');
+        linkContainer.style.marginTop = '40px';
+        linkContainer.style.borderTop = '1px solid var(--background-modifier-border)';
+        linkContainer.style.paddingTop = '20px';
 
-        linkContainer.createEl('a', { 
-            text: 'Go to Viewday dashboard ↗', 
-            href: 'https://viewday.app/dashboard' 
-        });
+        const createLink = (text: string, href: string) => {
+            const a = linkContainer.createEl('a', { text, href });
+            a.style.display = 'block';
+            a.style.marginBottom = '8px';
+            a.style.color = 'var(--text-muted)';
+            a.style.fontSize = '0.9em';
+        };
 
-        linkContainer.createEl('a', { 
-            text: 'Request a feature ↗', 
-            href: 'https://viewday.app/feature-requests' 
-        });
-
-        linkContainer.createEl('a', { 
-            text: 'Need help? Contact us ↗', 
-            href: 'https://viewday.app/contact' 
-        });
-        
+        createLink('Go to Viewday dashboard ↗', 'https://viewday.app/dashboard');
+        createLink('Request a feature ↗', 'https://viewday.app/feature-requests');
+        createLink('Need help? Contact us ↗', 'https://viewday.app/contact');
     }
 }

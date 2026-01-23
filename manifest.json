@@ -1,9 +1,9 @@
 {
   "id": "viewday-google-calendar",
-  "name": "Google Calendar by Viewday (Official)",
-  "version": "1.0.0",
+  "name": "Google Calendar by Viewday",
+  "version": "1.1.0",
   "minAppVersion": "0.15.0",
-  "description": "The official Viewday Google Calendar integration. Real-time sync, multi-account support, & OAuth. No API keys required.",
+  "description": "The official Viewday integration. Real-time sync, multi-account support, and one-click meeting notes. No API keys required.",
   "author": "Viewday",
   "authorUrl": "https://viewday.app",
   "isDesktopOnly": false
