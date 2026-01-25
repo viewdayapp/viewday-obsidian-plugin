@@ -1,13 +1,139 @@
-.viewday-success-container {
-    margin-top: 15px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
+/* --- SETTINGS HEADER --- */
+.viewday-settings-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.viewday-link-container {
+.viewday-settings-header h2 {
+    margin-bottom: 4px !important;
+    font-size: 1.3em;
+}
+
+.viewday-settings-header p {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin: 0;
+}
+
+/* --- LOCAL SOURCES CARD --- */
+.viewday-section-header {
+    margin-top: 32px !important;
+    margin-bottom: 8px !important;
+}
+
+.viewday-local-desc {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 12px;
+}
+
+.viewday-local-card {
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.viewday-card-label {
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+}
+
+.viewday-rule-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.viewday-rule-item:last-child {
+    border-bottom: none;
+}
+
+.viewday-rule-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.viewday-rule-name {
+    font-weight: 500;
+    font-size: 0.95em;
+    color: var(--text-normal);
+}
+
+.viewday-rule-info {
+    font-family: var(--font-monospace);
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-left: auto;
+    background: var(--background-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.viewday-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9em;
+    padding: 12px 0;
+    font-style: italic;
+}
+
+/* --- SUCCESS MESSAGE --- */
+.viewday-success-container {
     margin-top: 20px;
+    padding: 12px;
+    background-color: rgba(var(--interactive-success-rgb), 0.1);
+    border: 1px solid rgba(var(--interactive-success-rgb), 0.2);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-normal);
+    font-size: 0.9em;
+}
+
+.viewday-success-icon {
+    color: var(--interactive-success);
+    display: flex;
+    align-items: center;
+}
+
+/* --- FOOTER --- */
+.viewday-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+}
+
+.viewday-footer-link {
+    color: var(--text-muted) !important;
+    font-size: 0.85em;
+    text-decoration: none !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s ease;
+}
+
+.viewday-footer-link:hover {
+    color: var(--text-normal) !important;
+}
+
+.viewday-footer-arrow {
+    font-size: 0.8em;
+    opacity: 0.5;
 }

@@ -1,19 +1,31 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile, debounce } from 'obsidian';
+
+// --- TYPES ---
+interface LocalRule {
+    id: string;
+    name: string;     // Friendly label (e.g. "Deadlines")
+    property: string; // The actual key (e.g. "do_date")
+    color: string;
+    active: boolean;
+}
 
 interface ViewdaySettings {
     widgetId: string;
-    meetingNoteFolder: string; // New setting for folder path
+    meetingNoteFolder: string;
+    localRules: LocalRule[]; 
 }
 
 const DEFAULT_SETTINGS: ViewdaySettings = {
     widgetId: '',
-    meetingNoteFolder: 'Meeting Notes'
+    meetingNoteFolder: 'Meeting Notes',
+    localRules: []
 }
 
 export const VIEW_TYPE_VIEWDAY = "viewday-google-calendar";
 
 export default class ViewdayPlugin extends Plugin {
     settings: ViewdaySettings;
+    view: ViewdayView | null = null; 
 
     async onload() {
         await this.loadSettings();
@@ -21,10 +33,9 @@ export default class ViewdayPlugin extends Plugin {
 
         this.registerView(
             VIEW_TYPE_VIEWDAY,
-            (leaf) => new ViewdayView(leaf, this.settings)
+            (leaf) => (this.view = new ViewdayView(leaf, this.settings, this))
         );
 
-        // /skip setence case check: Viewday is a proper noun (Name of a company) and should be capitalized
         this.addRibbonIcon('calendar-days', 'Open Viewday', () => {
             void this.activateView();
         });
@@ -33,37 +44,150 @@ export default class ViewdayPlugin extends Plugin {
         this.registerDomEvent(window, 'message', (event) => {
             void this.handleMessage(event);
         });
+
+        // --- ENGINE: LISTEN FOR VAULT CHANGES ---
+        // Debounce to prevent freezing during rapid typing
+        const requestSync = debounce(this.pushLocalEvents.bind(this), 1000, true);
+        
+        // Listen for frontmatter changes
+        this.registerEvent(this.app.metadataCache.on('changed', (file) => {
+            requestSync();
+        }));
+        
+        // Listen for file renames/deletes
+        this.registerEvent(this.app.vault.on('rename', requestSync));
+        this.registerEvent(this.app.vault.on('delete', requestSync));
+    }
+
+    // --- ENGINE: SCAN & PUSH ---
+    async pushLocalEvents() {
+        // If no view is open or no rules exist, skip
+        if (!this.view || !this.settings.localRules.length) return;
+
+        const events: any[] = [];
+        const files = this.app.vault.getMarkdownFiles();
+
+        // 1. Scan every file in the vault
+        for (const file of files) {
+            const cache = this.app.metadataCache.getFileCache(file);
+            if (!cache?.frontmatter) continue;
+
+            // 2. Check against all active rules (synced from dashboard)
+            for (const rule of this.settings.localRules) {
+                if (!rule.active) continue;
+
+                const dateVal = cache.frontmatter[rule.property];
+                
+                if (dateVal) {
+                    // Check if it's All Day (YYYY-MM-DD) or Timed (YYYY-MM-DDTHH:mm)
+                    const isAllDay = typeof dateVal === 'string' && !dateVal.includes('T');
+                    
+                    events.push({
+                        id: `local::${file.path}::${rule.id}`, // Unique ID combination
+                        title: file.basename,
+                        start: dateVal, 
+                        allDay: isAllDay,
+                        backgroundColor: rule.color,
+                        borderColor: rule.color,
+                        // Pass data needed for Drag & Drop and Click handling
+                        extendedProps: {
+                            type: 'local',
+                            path: file.path,
+                            ruleId: rule.id,
+                            property: rule.property 
+                        }
+                    });
+                }
+            }
+        }
+
+        // 3. Send payload to Iframe
+        this.view.postMessage({
+            type: 'SYNC_LOCAL_EVENTS',
+            events: events,
+            // We verify rules via the dashboard, but we send them back to confirm 'Active' state
+            sources: this.settings.localRules
+        });
     }
 
     async handleMessage(event: MessageEvent) {
-        // SECURITY: Only accept messages from your domain
+        // SECURITY: Only accept messages from your domain or localhost
         if (event.origin !== "https://viewday.app" && event.origin !== "http://localhost:3000") return;
 
-        // Check for specific action type
-        if (event.data.type === 'create-meeting-note' && event.data.eventData) {
-            await this.createMeetingNote(event.data.eventData);
+        const { type, eventData, localPath, payload, rules } = event.data;
+
+        // ACTION: Sync Configuration (FROM Dashboard TO Plugin)
+        // When the dashboard loads, it tells the plugin what rules to use
+        if (type === 'CONFIGURE_RULES' && rules) {
+            this.settings.localRules = rules;
+            
+            // FIXED: Use saveData instead of saveSettings. 
+            // saveSettings() triggers onOpen() which reloads the iframe, causing an infinite loop.
+            await this.saveData(this.settings);
+            
+            await this.pushLocalEvents(); // Trigger immediate scan with new rules
+        }
+
+        // ACTION: Update Local Event (Drag & Drop)
+        if (type === 'UPDATE_LOCAL_EVENT' && payload) {
+            await this.updateLocalEvent(payload);
+        }
+
+        // ACTION: Create Meeting Note (Google Event -> Markdown)
+        if (type === 'create-meeting-note' && eventData) {
+            await this.createMeetingNote(eventData);
+        }
+
+        // ACTION: Open Local Note (Clicking a local event)
+        if (type === 'open-local-file' && localPath) {
+            const file = this.app.vault.getAbstractFileByPath(localPath);
+            if (file instanceof TFile) {
+                const leaf = this.app.workspace.getLeaf(false);
+                await leaf.openFile(file);
+            } else {
+                new Notice(`Could not find file: ${localPath}`);
+            }
+        }
+
+        // ACTION: Iframe Ready
+        if (type === 'viewday-ready') {
+            await this.pushLocalEvents();
+        }
+    }
+
+    // --- WRITE BACK TO FILE (The Kill Shot Logic) ---
+    async updateLocalEvent(payload: any) {
+        const { path, property, newValue } = payload;
+        
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) {
+            try {
+                // Safely update frontmatter using Obsidian API
+                await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                    frontmatter[property] = newValue;
+                });
+                new Notice(`Rescheduled: ${file.basename}`);
+            } catch (err) {
+                console.error("Viewday: Failed to update file", err);
+                new Notice("Viewday: Failed to update event date.");
+            }
         }
     }
 
     async createMeetingNote(data: any) {
-        // Helper to escape double quotes for YAML strings
         const escapeYaml = (text: string) => (text || '').replace(/"/g, '\\"');
-        // Destructure all the new fields
         const { title, date, time, location, meetingLink, organizer, attendees, description, attachments, gcalLink } = data;
         
-        // 1. Sanitize filename
         const safeTitle = (title || 'Untitled Event').replace(/[\\/:*?"<>|]/g, "");
         const fileName = `${date} - ${safeTitle}.md`;
         const folderPath = this.settings.meetingNoteFolder;
         const filePath = `${folderPath}/${fileName}`;
 
         try {
-            // 2. Ensure folder exists
             if (!this.app.vault.getAbstractFileByPath(folderPath)) {
                 await this.app.vault.createFolder(folderPath);
             }
 
-            // 3. Check if file exists
             const existingFile = this.app.vault.getAbstractFileByPath(filePath);
             if (existingFile instanceof TFile) {
                 const leaf = this.app.workspace.getLeaf(false);
@@ -72,8 +196,6 @@ export default class ViewdayPlugin extends Plugin {
                 return;
             }
 
-            // 4. Build Rich Content
-            // We use YAML frontmatter for metadata, which is standard in Obsidian
             let fileContent = `---
 date: ${date}
 time: ${time}
@@ -88,27 +210,19 @@ tags: [meeting]
 
 `;
 
-            // Add Meeting Link Button-like text if exists
-            if (meetingLink) {
-                fileContent += `[Join Meeting](${meetingLink})\n\n`;
-            }
-
+            if (meetingLink) fileContent += `[Join Meeting](${meetingLink})\n\n`;
             fileContent += `## Agenda\n${description || 'No agenda provided.'}\n\n`;
             
-            // Add Attachments Section if they exist
             if (attachments && attachments.length > 0) {
                 fileContent += `## Attachments\n`;
                 attachments.forEach((att: any) => {
-                    if (att.url) {
-                        fileContent += `- [${att.title}](${att.url})\n`;
-                    }
+                    if (att.url) fileContent += `- [${att.title}](${att.url})\n`;
                 });
                 fileContent += `\n`;
             }
 
             fileContent += `## Notes\n- \n`;
 
-            // 5. Create and Open
             const newFile = await this.app.vault.create(filePath, fileContent);
             const leaf = this.app.workspace.getLeaf(false);
             await leaf.openFile(newFile);
@@ -137,6 +251,8 @@ tags: [meeting]
 
     async saveSettings() { 
         await this.saveData(this.settings); 
+        // Trigger a push whenever settings are saved (though mostly managed by iframe now)
+        await this.pushLocalEvents();
         
         this.app.workspace.getLeavesOfType(VIEW_TYPE_VIEWDAY).forEach((leaf) => {
             if (leaf.view instanceof ViewdayView) {
@@ -148,11 +264,14 @@ tags: [meeting]
 
 class ViewdayView extends ItemView {
     settings: ViewdaySettings;
+    plugin: ViewdayPlugin; 
     icon = "calendar-days";
+    frame: HTMLIFrameElement | null = null; 
 
-    constructor(leaf: WorkspaceLeaf, settings: ViewdaySettings) {
+    constructor(leaf: WorkspaceLeaf, settings: ViewdaySettings, plugin: ViewdayPlugin) {
         super(leaf);
         this.settings = settings;
+        this.plugin = plugin;
 
         this.registerEvent(
             this.app.workspace.on('css-change', () => {
@@ -164,6 +283,12 @@ class ViewdayView extends ItemView {
     getViewType() { return VIEW_TYPE_VIEWDAY; }
     getDisplayText() { return "Viewday calendar"; }
 
+    postMessage(msg: any) {
+        if (this.frame && this.frame.contentWindow) {
+            this.frame.contentWindow.postMessage(msg, '*');
+        }
+    }
+
     async onOpen(): Promise<void> {
         await Promise.resolve(); 
 
@@ -171,14 +296,13 @@ class ViewdayView extends ItemView {
         container.empty();
         
         if (!this.settings.widgetId) {
-            // /skip setence case check: Widget Id is a proper noun (Name of an entity) and should be capitalized
             container.createEl("h4", { text: 'Please set your "Widget Id" in settings.' });
             return;
         }
 
         const isDark = document.body.classList.contains('theme-dark');
         
-        container.createEl("iframe", {
+        this.frame = container.createEl("iframe", {
             attr: {
                 src: `https://viewday.app/embed/${this.settings.widgetId}?platform=obsidian&theme=${isDark ? 'dark' : 'light'}`,
                 style: "width: 100%; height: 100%; border: none;",
@@ -196,49 +320,18 @@ class ViewdaySettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        // 1. HEADER & INTRO
-        // Using a Setting component ensures the text aligns exactly with the boxes below
+        // 1. HEADER
         const headerSetting = new Setting(containerEl)
             .setName('Google Calendar by Viewday')
-            .setDesc("A real-time Google Calendar for Obsidian with multi-account sync, secure OAuth, and dark mode support. No manual API key setup required. Requires a Viewday account.");
+            .setDesc("A real-time Google Calendar for Obsidian with multi-account sync.");
         
-        // CSS tweak to make the name look like a header (larger/bold) without the default padding issues
         headerSetting.nameEl.style.fontSize = '1.2em';
         headerSetting.nameEl.style.fontWeight = 'bold';
-        headerSetting.nameEl.style.marginBottom = '8px';
-        headerSetting.descEl.style.color = 'var(--text-normal)'; // Make description readable
 
-
-        // 2. SETUP INSTRUCTIONS
-        const setupSetting = new Setting(containerEl)
-            .setName('Setup instructions')
-            .setDesc('Connect your Google Calendar to Obsidian by following these simple steps:');
-        
-        setupSetting.nameEl.style.fontSize = '1.1em';
-        setupSetting.nameEl.style.fontWeight = 'bold';
-        setupSetting.nameEl.style.marginTop = '20px';
-        setupSetting.nameEl.style.marginBottom = '8px';
-
-        // 3. ORDERED LIST
-        // We append the list directly to the description container of the previous setting
-        // This keeps it inside the aligned "box" of the setting layout
-        const listContainer = setupSetting.descEl.createEl('ol');
-        listContainer.style.marginTop = '8px';
-        listContainer.style.paddingLeft = '20px'; // Standard list indent
-
-        const step1 = listContainer.createEl('li', { text: 'Sign up at ' });
-        step1.createEl('a', { text: 'Viewday', href: 'https://viewday.app/signup' });
-        step1.appendText('.');
-        listContainer.createEl('li', { text: 'Connect your Google accounts.' });
-        listContainer.createEl('li', { text: 'Create a calendar widget.' });
-        listContainer.createEl('li', { text: 'Select the calendars you want to see in Obsidian.' });
-        listContainer.createEl('li', { text: 'Copy the "Obsidian ID".' });
-
-
-        // 4. WIDGET ID SETTING (Standard)
+        // 2. WIDGET ID
         new Setting(containerEl)
             .setName('Widget Id')
-            .setDesc('Enter the "Obsidian ID" from your Viewday dashboard and hit enter')
+            .setDesc('Enter the "Obsidian ID" from your Viewday dashboard.')
             .addText(text => text
                 .setPlaceholder('Paste ID here...')
                 .setValue(this.plugin.settings.widgetId)
@@ -249,7 +342,7 @@ class ViewdaySettingTab extends PluginSettingTab {
                     });
                 }));
 
-        // 5. FOLDER SETTING (Standard)
+        // 3. NOTE FOLDER
         new Setting(containerEl)
             .setName('Meeting notes folder')
             .setDesc('Where should new meeting notes be created?')
@@ -261,12 +354,60 @@ class ViewdaySettingTab extends PluginSettingTab {
                     void this.plugin.saveSettings();
                 }));
 
-        // 6. SUCCESS MESSAGE
+        // 4. LOCAL SOURCES (Read Only)
+        // We now direct users to the dashboard instead of editing here
+        containerEl.createEl('h3', { text: 'Local Sources', cls: 'viewday-section-header' });
+        
+        const desc = containerEl.createDiv();
+        desc.style.color = 'var(--text-muted)';
+        desc.style.fontSize = '0.9em';
+        desc.style.marginBottom = '12px';
+        desc.createSpan({ text: 'Visualize tasks and notes from your vault on the calendar. ' });
+        desc.createSpan({ text: 'Configuration is managed in your ' });
+        desc.createEl('a', { text: 'Viewday Dashboard', href: 'https://viewday.app/dashboard?tab=sources' });
+        desc.createSpan({ text: '.' });
+
+        if (this.plugin.settings.localRules.length > 0) {
+            const list = containerEl.createEl('div');
+            list.style.background = 'var(--background-secondary)';
+            list.style.padding = '10px';
+            list.style.borderRadius = '8px';
+            list.style.border = '1px solid var(--background-modifier-border)';
+
+            list.createDiv({ text: 'Active Rules:', style: 'font-weight:bold; margin-bottom: 8px; font-size: 0.8em; text-transform: uppercase; color: var(--text-faint);' });
+
+            this.plugin.settings.localRules.forEach(rule => {
+                const item = list.createDiv();
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.gap = '10px';
+                item.style.marginBottom = '6px';
+                
+                const dot = item.createSpan();
+                dot.style.width = '8px';
+                dot.style.height = '8px';
+                dot.style.borderRadius = '50%';
+                dot.style.backgroundColor = rule.color;
+
+                const text = item.createSpan();
+                text.innerText = `${rule.name} (property: ${rule.property})`;
+                text.style.fontSize = '0.9em';
+            });
+        } else {
+            const empty = containerEl.createDiv();
+            empty.style.padding = '10px';
+            empty.style.border = '1px dashed var(--background-modifier-border)';
+            empty.style.borderRadius = '8px';
+            empty.style.textAlign = 'center';
+            empty.style.color = 'var(--text-muted)';
+            empty.innerText = "No local rules configured yet.";
+        }
+
+        // 5. SUCCESS MESSAGE
         const successContainer = containerEl.createDiv();
         const refreshSuccessMessage = (id: string) => {
             successContainer.empty();
             if (id && id.length > 0) {
-                // Add some top margin to separate from settings
                 successContainer.style.marginTop = '20px';
                 successContainer.addClass('viewday-success-container');
 
@@ -278,7 +419,7 @@ class ViewdaySettingTab extends PluginSettingTab {
         };
         refreshSuccessMessage(this.plugin.settings.widgetId);
 
-        // 7. FOOTER LINKS
+        // 6. FOOTER LINKS
         const linkContainer = containerEl.createDiv('viewday-link-container');
         linkContainer.style.marginTop = '40px';
         linkContainer.style.borderTop = '1px solid var(--background-modifier-border)';
