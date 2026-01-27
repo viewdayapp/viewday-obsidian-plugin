@@ -1,9 +1,9 @@
 {
   "id": "viewday-google-calendar",
   "name": "Google Calendar by Viewday",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "minAppVersion": "0.15.0",
-  "description": "The ultimate Google Calendar for Obsidian with local vault time-blocking. Real-time sync, multi-account merging, and drag-and-drop scheduling for your notes.",
+  "description": "The universal calendar for Obsidian. Create scheduled notes directly from the grid, time-block your vault via drag-and-drop, and sync Google Calendar in real-time.",
   "author": "Viewday",
   "authorUrl": "https://viewday.app",
   "isDesktopOnly": false
