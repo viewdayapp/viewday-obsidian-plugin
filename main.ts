@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile, debounce } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile, debounce, Platform } from 'obsidian';
 
 // --- TYPES ---
 interface LocalRule {
@@ -181,6 +181,11 @@ export default class ViewdayPlugin extends Plugin {
         // ACTION: Iframe Ready
         if (type === 'viewday-ready') {
             await this.pushLocalEvents();
+        }
+
+        // ACTION: Open External URL (Mobile Fix)
+        if (type === 'OPEN_EXTERNAL_URL' && event.data.url) {
+            window.open(event.data.url);
         }
 
         // ACTION: Create Local Note (From Quick Create Modal)
