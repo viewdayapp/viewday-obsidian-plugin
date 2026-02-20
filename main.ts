@@ -60,6 +60,64 @@ export default class ViewdayPlugin extends Plugin {
     }
 
     // --- ENGINE: SCAN & PUSH ---
+    // --- UNSCHEDULED: SCAN & PUSH ---
+    async scanForUnscheduled(activeRules: any[]) {
+        if (!this.view || !activeRules || !activeRules.length) {
+            this.view?.postMessage({ type: 'UNSCHEDULED_RESULTS', items: [] });
+            return;
+        }
+
+        const items: any[] = [];
+        const files = this.app.vault.getMarkdownFiles();
+
+        for (const rule of activeRules) {
+            const ruleFolder = rule.path || "";
+
+            for (const file of files) {
+                // Folder Filter
+                if (ruleFolder && !file.path.startsWith(ruleFolder)) continue;
+
+                const cache = this.app.metadataCache.getFileCache(file);
+
+                // Safety Check: Ensure frontmatter exists before trying to read it
+                if (!cache || !cache.frontmatter) continue;
+
+                const frontmatter = cache.frontmatter;
+                const property = rule.property;
+                const val = frontmatter[property];
+
+                // Strict Mode: Only show files that HAVE the key but NO value (e.g. "do_date: ")
+                if (val !== undefined && (val === null || val === '')) {
+
+                    // DURATION LOGIC (Must be inside the loop!)
+                    let durationVal = frontmatter['duration_minutes'];
+                    if (!durationVal) durationVal = frontmatter['duration']; // Fallback
+
+                    // Convert to number safely
+                    const finalDuration = durationVal ? Number(durationVal) : undefined;
+
+                    items.push({
+                        path: file.path,
+                        basename: file.basename,
+                        folder: file.parent?.path || "",
+                        sourceId: rule.id,
+                        property: rule.property,
+                        sourceColor: rule.color, // Pass color for UI
+                        duration: finalDuration  // Send to frontend
+                    });
+                }
+            }
+        }
+
+        // Deduplicate items based on path
+        const uniqueItems = Array.from(new Map(items.map(item => [item.path, item])).values());
+
+        this.view.postMessage({
+            type: 'UNSCHEDULED_RESULTS',
+            items: uniqueItems
+        });
+    }
+
     async pushLocalEvents() {
         // If no view is open or no rules exist, skip
         if (!this.view || !this.settings.localRules.length) return;
@@ -143,7 +201,13 @@ export default class ViewdayPlugin extends Plugin {
         // SECURITY: Only accept messages from your domain or localhost
         if (event.origin !== "https://viewday.app" && event.origin !== "http://localhost:3000") return;
 
-        const { type, eventData, localPath, payload, rules } = event.data;
+        const { type, eventData, localPath, payload, rules, sources } = event.data;
+
+        // ACTION: Fetch Unscheduled Items
+        if (type === 'FETCH_UNSCHEDULED' && sources) {
+            // sources payload: [{ path: "Tasks", property: "do_date", color: "blue", id: "..." }, ...]
+            await this.scanForUnscheduled(sources);
+        }
 
         // ACTION: Sync Configuration (FROM Dashboard TO Plugin)
         // When the dashboard loads, it tells the plugin what rules to use
@@ -159,6 +223,12 @@ export default class ViewdayPlugin extends Plugin {
 
         // ACTION: Update Local Event (Drag & Drop)
         if (type === 'UPDATE_LOCAL_EVENT' && payload) {
+            await this.updateLocalEvent(payload);
+        }
+
+        // ACTION: Update Note Date (from Unscheduled Drop) - Alias for UPDATE_LOCAL_EVENT
+        // The plan mentioned UPDATE_NOTE_DATE, let's support it for clarity/future proofing
+        if (type === 'UPDATE_NOTE_DATE' && payload) {
             await this.updateLocalEvent(payload);
         }
 
@@ -257,14 +327,21 @@ export default class ViewdayPlugin extends Plugin {
 
     // --- WRITE BACK TO FILE (The Kill Shot Logic) ---
     async updateLocalEvent(payload: any) {
-        const { path, property, newValue } = payload;
+        const { path, property, newValue, duration } = payload;
 
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file instanceof TFile) {
             try {
                 // Safely update frontmatter using Obsidian API
                 await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-                    frontmatter[property] = newValue;
+                    if (newValue === null) {
+                        frontmatter[property] = null;
+                    } else {
+                        frontmatter[property] = newValue;
+                        if (duration !== undefined && duration !== null) {
+                            frontmatter['duration_minutes'] = duration;
+                        }
+                    }
                 });
                 new Notice(`Rescheduled: ${file.basename}`);
             } catch (err) {
@@ -474,7 +551,7 @@ class ViewdaySettingTab extends PluginSettingTab {
             list.style.borderRadius = '8px';
             list.style.border = '1px solid var(--background-modifier-border)';
 
-            list.createDiv({ text: 'Active Rules:', style: 'font-weight:bold; margin-bottom: 8px; font-size: 0.8em; text-transform: uppercase; color: var(--text-faint);' });
+            list.createDiv({ text: 'Active Rules:', cls: 'viewday-active-rules-header' });
 
             this.plugin.settings.localRules.forEach(rule => {
                 const item = list.createDiv();
