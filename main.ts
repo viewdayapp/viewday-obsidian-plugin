@@ -7,6 +7,9 @@ interface LocalRule {
     property: string; // The actual key (e.g. "do_date")
     color: string;
     active: boolean;
+    folder_path?: string;
+    path?: string;
+    folder?: string;
 }
 
 interface ViewdaySettings {
@@ -71,25 +74,42 @@ export default class ViewdayPlugin extends Plugin {
         const files = this.app.vault.getMarkdownFiles();
 
         for (const rule of activeRules) {
-            const ruleFolder = rule.path || "";
+            // Note: Dashboard sets both folder_path (preferred) and path (fallback)
+            const ruleFolder = rule.folder_path || rule.path || rule.folder || "";
 
             for (const file of files) {
                 // Folder Filter
                 if (ruleFolder && !file.path.startsWith(ruleFolder)) continue;
 
                 const cache = this.app.metadataCache.getFileCache(file);
-
-                // Safety Check: Ensure frontmatter exists before trying to read it
-                if (!cache || !cache.frontmatter) continue;
-
-                const frontmatter = cache.frontmatter;
+                const frontmatter = cache?.frontmatter || {};
                 const property = rule.property;
                 const val = frontmatter[property];
 
-                // Strict Mode: Only show files that HAVE the key but NO value (e.g. "do_date: ")
-                if (val !== undefined && (val === null || val === '')) {
+                // Logic:
+                // 1. If no ruleFolder (Entire Vault): STRICT MODE. 
+                //    - Must have the property key, but value must be missing/empty.
+                // 2. If ruleFolder exists (Specific Folder): RELAXED MODE.
+                //    - Include if the property is missing entirely OR if it has an empty value.
+                //    - We STILL exclude it if it has a VALID date value (meaning it's scheduled).
 
-                    // DURATION LOGIC (Must be inside the loop!)
+                let isUnscheduled = false;
+
+                if (!ruleFolder) {
+                    // Strict Mode: Only show files that HAVE the key but NO value (e.g. "do_date: ")
+                    if (val !== undefined && (val === null || val === '')) {
+                        isUnscheduled = true;
+                    }
+                } else {
+                    // Relaxed Mode: Property doesn't exist, OR it exists but has no value
+                    // If val exists and is a non-empty string/date, it IS scheduled.
+                    if (val === undefined || val === null || val === '') {
+                        isUnscheduled = true;
+                    }
+                }
+
+                if (isUnscheduled) {
+                    // DURATION LOGIC
                     let durationVal = frontmatter['duration_minutes'];
                     if (!durationVal) durationVal = frontmatter['duration']; // Fallback
 
@@ -133,6 +153,10 @@ export default class ViewdayPlugin extends Plugin {
             // 2. Check against all active rules (synced from dashboard)
             for (const rule of this.settings.localRules) {
                 if (!rule.active) continue;
+
+                // Folder Filter
+                const ruleFolder = rule.folder_path || rule.path || rule.folder || "";
+                if (ruleFolder && !file.path.startsWith(ruleFolder)) continue;
 
                 const dateVal = cache.frontmatter[rule.property];
                 // Check for duration (minutes)
@@ -473,7 +497,7 @@ class ViewdayView extends ItemView {
         container.empty();
 
         if (!this.settings.widgetId) {
-            container.createEl("h4", { text: 'Please set your "Widget Id" in settings.' });
+            container.createEl("h4", { text: 'Please set your "Obsidian Id" in settings.' });
             return;
         }
 
@@ -505,12 +529,12 @@ class ViewdaySettingTab extends PluginSettingTab {
         headerSetting.nameEl.style.fontSize = '1.2em';
         headerSetting.nameEl.style.fontWeight = 'bold';
 
-        // 2. WIDGET ID
+        // 2. OBSIDIAN ID
         new Setting(containerEl)
-            .setName('Widget Id')
-            .setDesc('Enter the "Obsidian ID" from your Viewday dashboard.')
+            .setName('Obsidian Id')
+            .setDesc('Enter the "Obsidian Id" from your Viewday dashboard.')
             .addText(text => text
-                .setPlaceholder('Paste ID here...')
+                .setPlaceholder('Paste Id here...')
                 .setValue(this.plugin.settings.widgetId)
                 .onChange((value) => {
                     this.plugin.settings.widgetId = value;
@@ -567,7 +591,8 @@ class ViewdaySettingTab extends PluginSettingTab {
                 dot.style.backgroundColor = rule.color;
 
                 const text = item.createSpan();
-                text.innerText = `${rule.name} (property: ${rule.property})`;
+                const folderDisplayName = rule.folder_path || rule.path || rule.folder || '/';
+                text.innerText = `${rule.name} (property: ${rule.property} • folder: ${folderDisplayName})`;
                 text.style.fontSize = '0.9em';
             });
         } else {

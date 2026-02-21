@@ -25,6 +25,7 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 ## ✨ Features at a Glance
 
 - **Universal Sources:** Mix and match local project deadlines (Obsidian) with shared team events (Google Calendar) in a single, unified view.
+- **Folder-Based Color Coding:** Organize visually by folder. Target specific folder paths (like `/Video Scripts` or `/Newsletters`) and automatically assign them distinct colors on your calendar grid—no custom tags, emojis, or file naming hacks required.
 - **Real-time Sync:** Your Google calendar updates instantly in Obsidian. Local file changes are reflected on the grid with zero latency.
 - **De-Google Friendly:** You can use Viewday with zero Google accounts connected, relying 100% on your local vault via our Local Rules Engine.
 - **Join Meetings:** Launch Google Meet, Zoom, or Teams calls directly from your sidebar with one click.
