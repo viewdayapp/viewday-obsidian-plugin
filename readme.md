@@ -10,7 +10,7 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 
 ## 🌟 Highlights
 
-**Relational Time (Linked Notes)** Don't just view meetings—prep for them. Click the "Link note" button on any event (Google or Local) to natively fuzzy-search your vault and associate existing files (like agendas, client CRMs, or project specs). Viewday silently tracks these relationships in your YAML frontmatter, turning every calendar block into a 1-to-many command center.
+**Relational Time (Linked Notes)** Don't just view meetings, prep for them. Click the "Link note" button on any event (Google or Local) to natively fuzzy-search your vault and associate existing files (like agendas, client CRMs, or project specs). Viewday silently tracks these relationships in your YAML frontmatter, turning every calendar block into a 1-to-many command center.
 
 **The Unscheduled Backlog ("The Hopper")** Have notes or tasks with no date? Open the Unscheduled Sidebar to view all your floating ideas. Drag an unscheduled note directly onto the calendar grid, and Viewday will instantly write the date and time to that file's YAML frontmatter.
 
@@ -19,7 +19,7 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 **Daily Note Navigation**
 Your calendar grid is now a navigation hub. Click any date header on the grid (e.g., "Mon 23") to instantly jump to that day's Daily Note. If it doesn't exist, Viewday automatically generates it in the background using your core Daily Notes plugin settings.
 
-**The Creation Engine** Don't just view your schedule—build it. Click any empty slot on the grid to instantly generate a new Markdown file. Viewday will drop it in your vault and automatically inject the correct date/time into your frontmatter properties. 
+**The Creation Engine** Don't just view your schedule, build it. Click any empty slot on the grid to instantly generate a new Markdown file. Viewday will drop it in your vault and automatically inject the correct date/time into your frontmatter properties. 
 
 **Secure Google "Write-Back"** Need to schedule a Google Meeting? Click the grid to securely launch a pre-filled Google Calendar event. Viewday handles the scheduling without ever asking for invasive "Delete/Edit" permissions to your entire Google account.
 
@@ -29,7 +29,7 @@ Your calendar grid is now a navigation hub. Click any date header on the grid (e
 
 - **Interactive Legend:** A beautiful, drag-and-drop pill bar sits above your grid, giving you instant, one-click control to toggle the visibility of specific Google Calendars or local project folders.
 - **Universal Sources:** Mix and match local project deadlines (Obsidian) with shared team events (Google Calendar) in a single, unified view.
-- **Folder-Based Color Coding:** Organize visually by folder. Target specific folder paths (like `/Video Scripts` or `/Newsletters`) and automatically assign them distinct colors on your calendar grid—no custom tags, emojis, or file naming hacks required.
+- **Folder-Based Color Coding:** Organize visually by folder. Target specific folder paths (like `/Video Scripts` or `/Newsletters`) and automatically assign them distinct colors on your calendar grid - no custom tags, emojis, or file naming hacks required.
 - **Real-time Sync:** Your Google calendar updates instantly in Obsidian. Local file changes are reflected on the grid with zero latency.
 - **De-Google Friendly:** You can use Viewday with zero Google accounts connected, relying 100% on your local vault via our Local Rules Engine.
 - **Join Meetings:** Launch Google Meet, Zoom, or Teams calls directly from your sidebar with one click.
