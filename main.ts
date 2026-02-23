@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile, debounce, Platform } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, ItemView, WorkspaceLeaf, setIcon, Notice, TFile, debounce, Platform, FuzzySuggestModal } from 'obsidian';
 
 // --- TYPES ---
 interface LocalRule {
@@ -13,13 +13,13 @@ interface LocalRule {
 }
 
 interface ViewdaySettings {
-    widgetId: string;
+    viewId: string;
     meetingNoteFolder: string;
     localRules: LocalRule[];
 }
 
 const DEFAULT_SETTINGS: ViewdaySettings = {
-    widgetId: '',
+    viewId: '',
     meetingNoteFolder: 'Meeting Notes',
     localRules: []
 }
@@ -50,7 +50,10 @@ export default class ViewdayPlugin extends Plugin {
 
         // --- ENGINE: LISTEN FOR VAULT CHANGES ---
         // Debounce to prevent freezing during rapid typing
-        const requestSync = debounce(this.pushLocalEvents.bind(this), 1000, true);
+        const requestSync = debounce(() => {
+            void this.pushLocalEvents();
+            void this.pushLinkedNotes();
+        }, 1000, true);
 
         // Listen for frontmatter changes
         this.registerEvent(this.app.metadataCache.on('changed', (file) => {
@@ -221,6 +224,42 @@ export default class ViewdayPlugin extends Plugin {
         });
     }
 
+    async pushLinkedNotes() {
+        if (!this.view) return;
+
+        const linkedNotes: Record<string, Array<{ path: string, basename: string }>> = {};
+        const files = this.app.vault.getMarkdownFiles();
+
+        for (const file of files) {
+            const cache = this.app.metadataCache.getFileCache(file);
+            const links = cache?.frontmatter?.['viewday_links'];
+
+            if (links !== undefined && links !== null) {
+                let eventIds: string[] = [];
+                if (Array.isArray(links)) {
+                    eventIds = links.map(String);
+                } else {
+                    eventIds = [String(links)];
+                }
+
+                for (const id of eventIds) {
+                    if (!linkedNotes[id]) {
+                        linkedNotes[id] = [];
+                    }
+                    linkedNotes[id].push({
+                        path: file.path,
+                        basename: file.basename
+                    });
+                }
+            }
+        }
+
+        this.view.postMessage({
+            type: 'SYNC_LINKED_NOTES',
+            linkedNotes: linkedNotes
+        });
+    }
+
     async handleMessage(event: MessageEvent) {
         // SECURITY: Only accept messages from your domain or localhost
         if (event.origin !== "https://viewday.app" && event.origin !== "http://localhost:3000") return;
@@ -243,6 +282,7 @@ export default class ViewdayPlugin extends Plugin {
             await this.saveData(this.settings);
 
             await this.pushLocalEvents(); // Trigger immediate scan with new rules
+            await this.pushLinkedNotes();
         }
 
         // ACTION: Update Local Event (Drag & Drop)
@@ -272,9 +312,20 @@ export default class ViewdayPlugin extends Plugin {
             }
         }
 
+        // ACTION: Trigger Fuzzy Search
+        if (type === 'TRIGGER_FUZZY_SEARCH' && event.data.eventId) {
+            new LinkedNoteSuggester(this.app, this, event.data.eventId).open();
+        }
+
+        // ACTION: Unlink Document
+        if (type === 'UNLINK_DOCUMENT' && event.data.eventId && event.data.path) {
+            await this.unlinkDocument(event.data.path, event.data.eventId);
+        }
+
         // ACTION: Iframe Ready
         if (type === 'viewday-ready') {
             await this.pushLocalEvents();
+            await this.pushLinkedNotes();
         }
 
         // ACTION: Open External URL (Mobile Fix)
@@ -285,6 +336,106 @@ export default class ViewdayPlugin extends Plugin {
         // ACTION: Create Local Note (From Quick Create Modal)
         if (type === 'CREATE_LOCAL_NOTE' && payload) {
             await this.createLocalNote(payload);
+        }
+
+        // ACTION: Open Daily / Weekly Periodic Note
+        if (type === 'OPEN_PERIODIC_NOTE' && event.data.period && event.data.date) {
+            await this.openPeriodicNote(event.data.period, event.data.date);
+        }
+    }
+
+    async openPeriodicNote(period: 'daily' | 'weekly', date: string) {
+        try {
+            // --- Step 1: Read user settings from core plugins ---
+            // Try Periodic Notes plugin first, fall back to core Daily Notes
+            let folder = '';
+            let format = '';
+
+            if (period === 'daily') {
+                // Try Periodic Notes plugin (community)
+                const periodicNotes = (this.app as any).plugins?.getPlugin('periodic-notes');
+                if (periodicNotes?.settings?.daily?.enabled) {
+                    folder = periodicNotes.settings.daily.folder || '';
+                    format = periodicNotes.settings.daily.format || 'YYYY-MM-DD';
+                } else {
+                    // Fallback: core Daily Notes plugin
+                    const dailyNotes = (this.app as any).internalPlugins?.getPluginById('daily-notes');
+                    folder = dailyNotes?.instance?.options?.folder || '';
+                    format = dailyNotes?.instance?.options?.format || 'YYYY-MM-DD';
+                }
+                if (!format) format = 'YYYY-MM-DD';
+
+                // --- Step 2: Format the filename using moment.js (bundled in Obsidian) ---
+                const moment = (window as any).moment;
+                if (!moment) { new Notice('Viewday: moment.js not available.'); return; }
+                const noteName = moment(date, 'YYYY-MM-DD').format(format);
+                const fileName = `${noteName}.md`;
+                const filePath = folder ? `${folder}/${fileName}` : fileName;
+
+                // --- Step 3: Find or create ---
+                let file = this.app.vault.getAbstractFileByPath(filePath);
+                if (!file) {
+                    // Also try without extension (getFirstLinkpathDest)
+                    file = this.app.metadataCache.getFirstLinkpathDest(noteName, '') || null;
+                }
+
+                if (file instanceof TFile) {
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(file);
+                } else {
+                    // Create it
+                    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+                        await this.app.vault.createFolder(folder);
+                    }
+                    const newFile = await this.app.vault.create(filePath, '');
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(newFile);
+                    new Notice(`Created daily note: ${fileName}`);
+                }
+            } else if (period === 'weekly') {
+                // Try Periodic Notes plugin
+                const periodicNotes = (this.app as any).plugins?.getPlugin('periodic-notes');
+                if (periodicNotes?.settings?.weekly?.enabled) {
+                    folder = periodicNotes.settings.weekly.folder || '';
+                    format = periodicNotes.settings.weekly.format || 'gggg-[W]WW';
+                } else {
+                    // No native weekly note support in core — use a sensible default
+                    folder = '';
+                    format = 'gggg-[W]WW';
+                }
+                if (!format) format = 'gggg-[W]WW';
+
+                const moment = (window as any).moment;
+                if (!moment) { new Notice('Viewday: moment.js not available.'); return; }
+
+                // date is in ISO format e.g. "2026-W08" — parse week number
+                const [yearStr, weekStr] = date.split('-W');
+                const weekMoment = moment().isoWeekYear(parseInt(yearStr)).isoWeek(parseInt(weekStr)).startOf('isoWeek');
+                const noteName = weekMoment.format(format);
+                const fileName = `${noteName}.md`;
+                const filePath = folder ? `${folder}/${fileName}` : fileName;
+
+                let file = this.app.vault.getAbstractFileByPath(filePath);
+                if (!file) {
+                    file = this.app.metadataCache.getFirstLinkpathDest(noteName, '') || null;
+                }
+
+                if (file instanceof TFile) {
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(file);
+                } else {
+                    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+                        await this.app.vault.createFolder(folder);
+                    }
+                    const newFile = await this.app.vault.create(filePath, '');
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(newFile);
+                    new Notice(`Created weekly note: ${fileName}`);
+                }
+            }
+        } catch (err) {
+            console.error('Viewday: Failed to open periodic note', err);
+            new Notice('Viewday: Could not open periodic note. Make sure the Daily Notes or Periodic Notes plugin is enabled.');
         }
     }
 
@@ -375,6 +526,26 @@ export default class ViewdayPlugin extends Plugin {
         }
     }
 
+    async unlinkDocument(path: string, eventId: string) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) {
+            try {
+                await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                    let links = frontmatter['viewday_links'];
+                    if (Array.isArray(links)) {
+                        frontmatter['viewday_links'] = links.filter((id: string) => id !== eventId);
+                    } else if (links !== undefined && String(links) === eventId) {
+                        frontmatter['viewday_links'] = [];
+                    }
+                });
+                new Notice(`Unlinked note from event`);
+            } catch (err) {
+                console.error("Viewday: Failed to unlink note", err);
+                new Notice("Viewday: Failed to unlink note.");
+            }
+        }
+    }
+
     async createMeetingNote(data: any) {
         const escapeYaml = (text: string) => (text || '').replace(/"/g, '\\"');
         const { title, date, time, location, meetingLink, organizer, attendees, description, attachments, gcalLink } = data;
@@ -454,6 +625,7 @@ tags: [meeting]
         await this.saveData(this.settings);
         // Trigger a push whenever settings are saved (though mostly managed by iframe now)
         await this.pushLocalEvents();
+        await this.pushLinkedNotes();
 
         this.app.workspace.getLeavesOfType(VIEW_TYPE_VIEWDAY).forEach((leaf) => {
             if (leaf.view instanceof ViewdayView) {
@@ -496,17 +668,17 @@ class ViewdayView extends ItemView {
         const container = this.contentEl;
         container.empty();
 
-        if (!this.settings.widgetId) {
-            container.createEl("h4", { text: 'Please set your "Obsidian Id" in settings.' });
+        if (!this.settings.viewId) {
+            container.createEl("h4", { text: 'Please set your "View Id" in settings.' });
             return;
         }
 
         const isDark = document.body.classList.contains('theme-dark');
 
         this.frame = container.createEl("iframe", {
+            cls: 'viewday-iframe',
             attr: {
-                src: `https://viewday.app/embed/${this.settings.widgetId}?platform=obsidian&theme=${isDark ? 'dark' : 'light'}`,
-                style: "width: 100%; height: 100%; border: none;",
+                src: `https://viewday.app/embed/${this.settings.viewId}?platform=obsidian&theme=${isDark ? 'dark' : 'light'}`,
                 sandbox: "allow-scripts allow-same-origin allow-popups"
             }
         });
@@ -526,18 +698,17 @@ class ViewdaySettingTab extends PluginSettingTab {
             .setName('Google Calendar by Viewday')
             .setDesc("A real-time Google Calendar for Obsidian with multi-account sync.");
 
-        headerSetting.nameEl.style.fontSize = '1.2em';
-        headerSetting.nameEl.style.fontWeight = 'bold';
+        headerSetting.nameEl.addClass('viewday-settings-header-name');
 
-        // 2. OBSIDIAN ID
+        // 2. VIEW ID
         new Setting(containerEl)
-            .setName('Obsidian Id')
-            .setDesc('Enter the "Obsidian Id" from your Viewday dashboard.')
+            .setName('View Id')
+            .setDesc('Enter the "View Id" from your Viewday dashboard.')
             .addText(text => text
                 .setPlaceholder('Paste Id here...')
-                .setValue(this.plugin.settings.widgetId)
+                .setValue(this.plugin.settings.viewId)
                 .onChange((value) => {
-                    this.plugin.settings.widgetId = value;
+                    this.plugin.settings.viewId = value;
                     void this.plugin.saveSettings().then(() => {
                         refreshSuccessMessage(value);
                     });
@@ -559,50 +730,32 @@ class ViewdaySettingTab extends PluginSettingTab {
         // We now direct users to the dashboard instead of editing here
         containerEl.createEl('h3', { text: 'Local Sources', cls: 'viewday-section-header' });
 
-        const desc = containerEl.createDiv();
-        desc.style.color = 'var(--text-muted)';
-        desc.style.fontSize = '0.9em';
-        desc.style.marginBottom = '12px';
+        const desc = containerEl.createDiv({ cls: 'viewday-section-desc' });
         desc.createSpan({ text: 'Visualize tasks and notes from your vault on the calendar. ' });
         desc.createSpan({ text: 'Configuration is managed in your ' });
         desc.createEl('a', { text: 'Viewday Dashboard', href: 'https://viewday.app/dashboard?tab=sources' });
         desc.createSpan({ text: '.' });
 
         if (this.plugin.settings.localRules.length > 0) {
-            const list = containerEl.createEl('div');
-            list.style.background = 'var(--background-secondary)';
-            list.style.padding = '10px';
-            list.style.borderRadius = '8px';
-            list.style.border = '1px solid var(--background-modifier-border)';
+            const list = containerEl.createDiv({ cls: 'viewday-rules-list' });
 
             list.createDiv({ text: 'Active Rules:', cls: 'viewday-active-rules-header' });
 
             this.plugin.settings.localRules.forEach(rule => {
-                const item = list.createDiv();
-                item.style.display = 'flex';
-                item.style.alignItems = 'center';
-                item.style.gap = '10px';
-                item.style.marginBottom = '6px';
+                const item = list.createDiv({ cls: 'viewday-rule-item' });
 
-                const dot = item.createSpan();
-                dot.style.width = '8px';
-                dot.style.height = '8px';
-                dot.style.borderRadius = '50%';
-                dot.style.backgroundColor = rule.color;
+                const dot = item.createSpan({ cls: 'viewday-rule-dot' });
+                dot.style.backgroundColor = rule.color; // dynamic per-rule color — cannot be a static CSS class
 
-                const text = item.createSpan();
+                const text = item.createSpan({ cls: 'viewday-rule-text' });
                 const folderDisplayName = rule.folder_path || rule.path || rule.folder || '/';
                 text.innerText = `${rule.name} (property: ${rule.property} • folder: ${folderDisplayName})`;
-                text.style.fontSize = '0.9em';
             });
         } else {
-            const empty = containerEl.createDiv();
-            empty.style.padding = '10px';
-            empty.style.border = '1px dashed var(--background-modifier-border)';
-            empty.style.borderRadius = '8px';
-            empty.style.textAlign = 'center';
-            empty.style.color = 'var(--text-muted)';
-            empty.innerText = "No local rules configured yet.";
+            containerEl.createDiv({
+                cls: 'viewday-empty-rules',
+                text: 'No local rules configured yet.'
+            });
         }
 
         // 5. SUCCESS MESSAGE
@@ -610,7 +763,6 @@ class ViewdaySettingTab extends PluginSettingTab {
         const refreshSuccessMessage = (id: string) => {
             successContainer.empty();
             if (id && id.length > 0) {
-                successContainer.style.marginTop = '20px';
                 successContainer.addClass('viewday-success-container');
 
                 successContainer.createSpan({ text: "All set! Click the calendar icon" });
@@ -619,24 +771,60 @@ class ViewdaySettingTab extends PluginSettingTab {
                 successContainer.createSpan({ text: "in your sidebar to view your schedule." });
             }
         };
-        refreshSuccessMessage(this.plugin.settings.widgetId);
+        refreshSuccessMessage(this.plugin.settings.viewId);
 
         // 6. FOOTER LINKS
-        const linkContainer = containerEl.createDiv('viewday-link-container');
-        linkContainer.style.marginTop = '40px';
-        linkContainer.style.borderTop = '1px solid var(--background-modifier-border)';
-        linkContainer.style.paddingTop = '20px';
+        const linkContainer = containerEl.createDiv({ cls: 'viewday-link-container' });
 
         const createLink = (text: string, href: string) => {
-            const a = linkContainer.createEl('a', { text, href });
-            a.style.display = 'block';
-            a.style.marginBottom = '8px';
-            a.style.color = 'var(--text-muted)';
-            a.style.fontSize = '0.9em';
+            linkContainer.createEl('a', { text, href, cls: 'viewday-footer-link' });
         };
 
         createLink('Go to Viewday dashboard ↗', 'https://viewday.app/dashboard');
         createLink('Request a feature ↗', 'https://viewday.app/feature-requests');
         createLink('Need help? Contact us ↗', 'https://viewday.app/contact');
+    }
+}
+
+class LinkedNoteSuggester extends FuzzySuggestModal<TFile> {
+    plugin: ViewdayPlugin;
+    eventId: string;
+
+    constructor(app: App, plugin: ViewdayPlugin, eventId: string) {
+        super(app);
+        this.plugin = plugin;
+        this.eventId = eventId;
+        this.setPlaceholder("Search for a note to link...");
+    }
+
+    getItems(): TFile[] {
+        return this.app.vault.getMarkdownFiles();
+    }
+
+    getItemText(file: TFile): string {
+        return file.path;
+    }
+
+    async onChooseItem(file: TFile, evt: MouseEvent | KeyboardEvent) {
+        try {
+            await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                let links = frontmatter['viewday_links'];
+                if (!links) {
+                    frontmatter['viewday_links'] = [this.eventId];
+                } else if (Array.isArray(links)) {
+                    if (!links.includes(this.eventId)) {
+                        links.push(this.eventId);
+                    }
+                } else {
+                    // String or other type -> cast to array
+                    frontmatter['viewday_links'] = [String(links), this.eventId];
+                }
+            });
+            new Notice(`Linked: ${file.basename}`);
+            // Let the metadataCache watcher pick up the change and trigger requestSync
+        } catch (err) {
+            console.error("Viewday: Failed to link note", err);
+            new Notice("Viewday: Failed to link note.");
+        }
     }
 }

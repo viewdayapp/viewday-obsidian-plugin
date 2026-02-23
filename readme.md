@@ -1,6 +1,6 @@
 # Viewday Official
 
-This is the official plugin maintained by the Viewday team, designed to turn Obsidian into the ultimate visual planner.
+This is the official plugin maintained by the Viewday team, designed to turn Obsidian into the ultimate visual planner and relational time database.
 
 Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time **Google Calendar** meetings with your **local Obsidian notes and tasks**. No manual API key setup required.
 
@@ -10,9 +10,14 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 
 ## 🌟 Highlights
 
+**Relational Time (Linked Notes)** Don't just view meetings—prep for them. Click the "Link note" button on any event (Google or Local) to natively fuzzy-search your vault and associate existing files (like agendas, client CRMs, or project specs). Viewday silently tracks these relationships in your YAML frontmatter, turning every calendar block into a 1-to-many command center.
+
 **The Unscheduled Backlog ("The Hopper")** Have notes or tasks with no date? Open the Unscheduled Sidebar to view all your floating ideas. Drag an unscheduled note directly onto the calendar grid, and Viewday will instantly write the date and time to that file's YAML frontmatter.
 
 **Drag-and-Drop Time Blocking** Manage your vault visually. Drag existing local tasks to new days or times, and Viewday will automatically update the underlying markdown file. It natively respects your `duration` frontmatter to block out the exact right amount of time.
+
+**Daily Note Navigation**
+Your calendar grid is now a navigation hub. Click any date header on the grid (e.g., "Mon 23") to instantly jump to that day's Daily Note. If it doesn't exist, Viewday automatically generates it in the background using your core Daily Notes plugin settings.
 
 **The Creation Engine** Don't just view your schedule—build it. Click any empty slot on the grid to instantly generate a new Markdown file. Viewday will drop it in your vault and automatically inject the correct date/time into your frontmatter properties. 
 
@@ -20,10 +25,9 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 
 **Smart Meeting Notes** Jumpstart your note-taking with one click. Viewday automatically captures attendees, agenda, location, and links into a Dataview-ready format so you can focus on capturing minutes and ideas.
 
-![Create Meeting Notes](assets/viewday-obsidian-create-note.png)
-
 ## ✨ Features at a Glance
 
+- **Interactive Legend:** A beautiful, drag-and-drop pill bar sits above your grid, giving you instant, one-click control to toggle the visibility of specific Google Calendars or local project folders.
 - **Universal Sources:** Mix and match local project deadlines (Obsidian) with shared team events (Google Calendar) in a single, unified view.
 - **Folder-Based Color Coding:** Organize visually by folder. Target specific folder paths (like `/Video Scripts` or `/Newsletters`) and automatically assign them distinct colors on your calendar grid—no custom tags, emojis, or file naming hacks required.
 - **Real-time Sync:** Your Google calendar updates instantly in Obsidian. Local file changes are reflected on the grid with zero latency.
@@ -35,14 +39,14 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 
 1. **Sign Up:** Create a free account at [viewday.app](https://viewday.app).
 2. **Configure Sources:** Connect your Google Calendar(s) and define your "Local Rules" (e.g., scan for the `do_date` property).
-3. **Generate a Widget:** Create a new View in the dashboard to get your unique **Widget ID**.
-4. **Install & Paste:** Install this plugin, then paste your **Widget ID** into the Viewday Plugin settings in Obsidian.
+3. **Generate a View:** Create a new View in the dashboard to get your unique **View ID**.
+4. **Install & Paste:** Install this plugin, then paste your **View ID** into the Viewday Plugin settings in Obsidian.
 5. **Open:** Click the calendar icon in your ribbon (left sidebar) to open your command center.
 
 ## 🛠️ Technical Details
 
 This plugin acts as a highly optimized, secure wrapper for the Viewday web engine.
-- **Privacy:** The plugin only stores your `Widget ID` and folder preferences locally.
+- **Privacy:** The plugin only stores your `View ID` and folder preferences locally.
 - **Security:** All Google Calendar data is handled via Viewday's encrypted backend. We use a Secure Deep Link architecture for creating events, meaning we never request full write access to your Google Calendar.
 - **Local First:** Local markdown file parsing happens entirely on your machine.
 - **Performance:** Optimized with targeted file caching and debounced updates to ensure zero impact on your vault's speed.
