@@ -53,14 +53,29 @@ This plugin acts as a highly optimized, secure wrapper for the Viewday web engin
 
 ## 📈 Pricing
 
-Viewday is a **Freemium** service. 
-- **Free:** Use 1 Google Calendar account + 1 Local Obsidian Source. Includes drag-and-drop local time blocking.
-- **Pro ($3.50/mo):** Unlock unlimited Google accounts, unlimited local rules, agenda views, and remove Viewday branding.
+Viewday is a **Freemium** service designed to grow with your vault. 
+
+- **Free Plan:** Everything you need to build a unified daily planner.
+  - 1 Google Calendar connection
+  - 1 Local Obsidian Source (e.g., your main `/Tasks` folder)
+  - Drag-and-drop local time blocking & the Unscheduled Hopper
+  - Relational Time: Link your notes directly to your events
+  - Clickable Date Headers & the Interactive Legend
+
+- **Pro Plan ($3.50/mo):** For power users who manage multiple timelines.
+  - **Unlimited** Google Calendar accounts (seamlessly merge Work & Personal calendars into one view)
+  - **Unlimited** Local Obsidian Sources (color-code and filter unlimited specific folder paths)
+  - Premium Agenda layouts
+  - Zero Viewday branding on your calendar views
 
 ## 🤝 Support & Feedback
 
+- **Website:** [viewday.app](https://viewday.app)
 - **Dashboard:** [viewday.app/dashboard](https://viewday.app/dashboard)
 - **Feature Requests:** [viewday.app/feature-requests](https://viewday.app/feature-requests)
+- **Privacy Policy:** [viewday.app/privacy](https://viewday.app/privacy)
+- **Terms of Service:** [viewday.app/terms](https://viewday.app/terms)
+- **Trust Center:** [viewday.app/security](https://viewday.app/security)
 - **Contact:** [viewday.app/contact](https://viewday.app/contact) or email us at [hello@viewday.app](mailto:hello@viewday.app)
 
 ---
