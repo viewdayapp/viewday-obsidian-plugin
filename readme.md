@@ -10,7 +10,7 @@ Viewday is a **Universal Calendar Layer** that seamlessly blends your real-time 
 
 ## 🌟 Highlights
 
-**Relational Time (Linked Notes)** Don't just view meetings, prep for them. Click the "Link note" button on any event (Google or Local) to natively fuzzy-search your vault and associate existing files (like agendas, client CRMs, or project specs). Viewday silently tracks these relationships in your YAML frontmatter, turning every calendar block into a 1-to-many command center.
+**Relational Time (Linked Notes) & Graph Integration** Don't just view meetings, prep for them. Click the "Link note" button on any event (Google or Local) to natively fuzzy-search your vault and associate existing files (like agendas, client CRMs, or project specs). For local events, Viewday intelligently injects native `[[Wikilinks]]` into your YAML frontmatter - ensuring your linked calendar blocks automatically populate your Obsidian Graph View and never break when you rename a file.
 
 **The Unscheduled Backlog ("The Hopper")** Have notes or tasks with no date? Open the Unscheduled Sidebar to view all your floating ideas. Drag an unscheduled note directly onto the calendar grid, and Viewday will instantly write the date and time to that file's YAML frontmatter.
 
@@ -27,7 +27,8 @@ Your calendar grid is now a navigation hub. Click any date header on the grid (e
 
 ## ✨ Features at a Glance
 
-- **Interactive Legend:** A beautiful, drag-and-drop pill bar sits above your grid, giving you instant, one-click control to toggle the visibility of specific Google Calendars or local project folders.
+- **Interactive Legend:** A beautiful, drag-and-drop pill bar sits above your grid. It provides instant visual clarity: Google Calendars display as solid color dots (`●`), while Local Obsidian properties display as sleek hollow rings (`○`). Click any pill to toggle its visibility instantly.
+- **Unified Event Details:** Clicking any event, whether it is a remote Google Meeting or a local Vault Task, opens a unified, clean popover command center where you can open the source file or link supplementary notes.
 - **Universal Sources:** Mix and match local project deadlines (Obsidian) with shared team events (Google Calendar) in a single, unified view.
 - **Folder-Based Color Coding:** Organize visually by folder. Target specific folder paths (like `/Video Scripts` or `/Newsletters`) and automatically assign them distinct colors on your calendar grid - no custom tags, emojis, or file naming hacks required.
 - **Real-time Sync:** Your Google calendar updates instantly in Obsidian. Local file changes are reflected on the grid with zero latency.
