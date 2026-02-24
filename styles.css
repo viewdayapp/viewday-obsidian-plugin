@@ -89,6 +89,12 @@
     color: var(--text-muted);
 }
 
+/* Settings: section header h3 */
+.viewday-section-header {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+}
+
 /* View: the embedded iframe */
 .viewday-iframe {
     width: 100%;

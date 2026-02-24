@@ -243,13 +243,38 @@ export default class ViewdayPlugin extends Plugin {
                 }
 
                 for (const id of eventIds) {
-                    if (!linkedNotes[id]) {
-                        linkedNotes[id] = [];
+                    let targetIds = [id];
+
+                    // If it's a wikilink [[...]], resolve it to any matching local events
+                    if (id.startsWith('[[') && id.endsWith(']]')) {
+                        const linkText = id.substring(2, id.length - 2);
+                        const targetFile = this.app.metadataCache.getFirstLinkpathDest(linkText, "");
+                        if (targetFile instanceof TFile) {
+                            // Find all local event IDs that match this file
+                            targetIds = [];
+                            for (const rule of this.settings.localRules) {
+                                if (!rule.active) continue;
+                                const ruleFolder = rule.folder_path || rule.path || rule.folder || "";
+                                if (ruleFolder && !targetFile.path.startsWith(ruleFolder)) continue;
+
+                                // Check if this file has a date for this rule's property
+                                const targetCache = this.app.metadataCache.getFileCache(targetFile);
+                                if (targetCache?.frontmatter?.[rule.property]) {
+                                    targetIds.push(`local::${targetFile.path}::${rule.id}`);
+                                }
+                            }
+                        }
                     }
-                    linkedNotes[id].push({
-                        path: file.path,
-                        basename: file.basename
-                    });
+
+                    for (const tid of targetIds) {
+                        if (!linkedNotes[tid]) {
+                            linkedNotes[tid] = [];
+                        }
+                        linkedNotes[tid].push({
+                            path: file.path,
+                            basename: file.basename
+                        });
+                    }
                 }
             }
         }
@@ -807,17 +832,33 @@ class LinkedNoteSuggester extends FuzzySuggestModal<TFile> {
 
     async onChooseItem(file: TFile, evt: MouseEvent | KeyboardEvent) {
         try {
+            let finalId = this.eventId;
+
+            // If it's a local event ID, convert to a clean wikilink: [[Basename]]
+            if (finalId.startsWith('local::')) {
+                const parts = finalId.split('::');
+                if (parts.length >= 2) {
+                    const filePath = parts[1];
+                    const targetFile = this.plugin.app.vault.getAbstractFileByPath(filePath);
+                    if (targetFile instanceof TFile) {
+                        finalId = `[[${targetFile.basename}]]`;
+                    }
+                }
+            }
+
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
                 let links = frontmatter['viewday_links'];
                 if (!links) {
-                    frontmatter['viewday_links'] = [this.eventId];
+                    frontmatter['viewday_links'] = [finalId];
                 } else if (Array.isArray(links)) {
-                    if (!links.includes(this.eventId)) {
-                        links.push(this.eventId);
+                    if (!links.includes(finalId)) {
+                        links.push(finalId);
                     }
                 } else {
                     // String or other type -> cast to array
-                    frontmatter['viewday_links'] = [String(links), this.eventId];
+                    if (String(links) !== finalId) {
+                        frontmatter['viewday_links'] = [String(links), finalId];
+                    }
                 }
             });
             new Notice(`Linked: ${file.basename}`);
